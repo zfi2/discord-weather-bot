@@ -1,9 +1,11 @@
+import os
 import discord
 import requests
 import urllib.parse
+import asyncio
 from datetime import datetime, timedelta
 
-DISCORD_BOT_TOKEN = 'your_discord_bot_token'
+DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 INCLUDE_LOCATION_IN_MESSAGE = False
 
 intents = discord.Intents.default()
@@ -41,13 +43,38 @@ async def on_message(message):
         return
 
     content = message.content.lower()
+    matches = []
     for city in cities:
         if city in content:
-            location = f"{city.title()},{cities[city]}"
-            await check_weather(message.channel, location)
-            return
+            matches.append(city)
     
-    await message.channel.send("that place doesnt exist or im too dumb to find it my bad")
+    if len(matches) == 0:
+        await message.channel.send("that place doesnt exist or im too dumb to find it my bad")
+    elif len(matches) == 1:
+        location = f"{matches[0].title()},{cities[matches[0]]}"
+        await check_weather(message.channel, location)
+    else:
+        view = discord.ui.View()
+        for i, match in enumerate(matches[:5]):
+            button = discord.ui.Button(label=f"{match.title()}, {cities[match]}".lower().replace(',', ' '), custom_id=str(i))
+            view.add_item(button)
+        
+        sent_message = await message.channel.send("i got a bit confused can you specify please", view=view)
+        
+        try:
+            interaction = await client.wait_for('interaction', timeout=30.0)
+            selected = matches[int(interaction.data['custom_id'])]
+            location = f"{selected.title()},{cities[selected]}"
+            await interaction.response.defer()
+            await sent_message.delete()
+            await check_weather(message.channel, location)
+        except asyncio.TimeoutError:
+            await message.channel.send("choice expired bro")
+            await sent_message.delete()
+        except Exception as e:
+            print(f"error in city selection: {str(e)}")
+            await message.channel.send("some error occured bro try again")
+            await sent_message.delete()
 
 async def check_weather(channel, location):
     print(f"checking weather for: {location}")
