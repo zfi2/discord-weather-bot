@@ -12,21 +12,26 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
-cities = {line.strip().lower().split(',')[0]: line.strip().split(',')[1] for line in open('cities.txt', 'r')}
+cities = {}
+with open('cities.txt', 'r') as file:
+    for line in file:
+        city, country = line.strip().lower().split(',')
+        cities[city] = country
 
+tomorrow_bro = 'tomorrow bro'
 weather_messages = {
-    "massive_thunderstorm": "very big thunderstorm tomorrow :thunder_cloud_rain: :thunder_cloud_rain: :thunder_cloud_rain:",
-    "severe_thunderstorm": "big thunderstorm tomorrow :thunder_cloud_rain: :thunder_cloud_rain:",
-    "thunderstorm": "thunderstorm tomorrow :thunder_cloud_rain:",
-    "blizzard": "blizzard tomorrow",
-    "snow": "its gonna snow tomorrow bro :cloud_snow:",
-    "hurricane": "hurricane tomorrow :cloud_tornado:",
-    "rain": "its gonna rain tomorrow bro",
-    "windy": "very big winds tomorrow :leaves:",
-    "extreme_heat": "youre extremely cooked tomorrow bro stay hydrated :fried_shrimp:",
-    "warm": "its gonna be warm tomorrow bro :hotsprings:",
-    "icy": "you are gonna freeze tomorrow bro :ice_cube:",
-    "cold": "its gonna be cold tomorrow bro :snowflake:"
+    "massive_thunderstorm": f"very big thunderstorm {tomorrow_bro} :thunder_cloud_rain: :thunder_cloud_rain: :thunder_cloud_rain:",
+    "severe_thunderstorm": f"big thunderstorm {tomorrow_bro} :thunder_cloud_rain: :thunder_cloud_rain:",
+    "thunderstorm": f"thunderstorm {tomorrow_bro} :thunder_cloud_rain:",
+    "blizzard": f"blizzard {tomorrow_bro}",
+    "snow": f"snow {tomorrow_bro} :cloud_snow:",
+    "hurricane": f"hurricane {tomorrow_bro} :cloud_tornado:",
+    "rain": f"rain {tomorrow_bro}",
+    "windy": f"very big winds {tomorrow_bro} :leaves:",
+    "extreme_heat": f"extremely cooked {tomorrow_bro} :fried_shrimp:",
+    "warm": f"warm {tomorrow_bro} :hotsprings:",
+    "icy": f"very icy {tomorrow_bro} :ice_cube:",
+    "cold": f"cold {tomorrow_bro} :snowflake:"
 }
 
 @client.event
@@ -37,19 +42,17 @@ async def on_ready():
 async def on_message(message):
     if message.author == client.user:
         return
-    
-    if message.content.lower() == 'test':
+
+    content = message.content.lower()
+
+    if content.startswith('weather'):
         await message.channel.send('at your disposal vro :heart:')
         return
 
-    content = message.content.lower()
-    matches = []
-    for city in cities:
-        if city in content:
-            matches.append(city)
-    
-    if len(matches) == 0:
-        await message.channel.send("that place doesnt exist or im too dumb to find it my bad")
+    matches = [city for city in cities if city in content]
+
+    if not matches:
+        return
     elif len(matches) == 1:
         location = f"{matches[0].title()},{cities[matches[0]]}"
         await check_weather(message.channel, location)
@@ -73,7 +76,7 @@ async def on_message(message):
             await sent_message.delete()
         except Exception as e:
             print(f"error in city selection: {str(e)}")
-            await message.channel.send("some error occured bro try again")
+            await message.channel.send("some error occurred try again bro")
             await sent_message.delete()
 
 async def check_weather(channel, location):
@@ -99,9 +102,12 @@ async def check_weather(channel, location):
         wind_speed = weather_data['daily']['windspeed_10m_max'][0]
         
         if weather_code in [95, 96, 99]:
-            message = weather_messages["massive_thunderstorm"] if wind_speed > 120 else \
-                    weather_messages["severe_thunderstorm"] if wind_speed > 90 else \
-                    weather_messages["thunderstorm"]
+            if wind_speed > 120:
+                message = weather_messages["massive_thunderstorm"]
+            elif wind_speed > 90:
+                message = weather_messages["severe_thunderstorm"]
+            else:
+                message = weather_messages["thunderstorm"]
         elif weather_code in [71, 73, 75, 77, 85, 86]:
             message = weather_messages["blizzard"] if wind_speed > 50 else weather_messages["snow"]
         elif weather_code in [51, 53, 55, 61, 63, 65, 80, 81, 82]:
@@ -116,11 +122,13 @@ async def check_weather(channel, location):
             message = weather_messages["icy"]
         else:
             message = weather_messages["cold"]
-        
-        if INCLUDE_LOCATION_IN_MESSAGE:
-            await channel.send(f"{message}\n-# {location}")
+
+        message_text = f"{message}\n-# {location}" if INCLUDE_LOCATION_IN_MESSAGE else message
+
+        if 'chicago' in location.lower():
+            await channel.send(message_text.replace("tomorrow bro", "tomorrow and a shootout bro"))
         else:
-            await channel.send(message)
+            await channel.send(message_text)
     
     except Exception as e:
         print(f"error: {str(e)}")
